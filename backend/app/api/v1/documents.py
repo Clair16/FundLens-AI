@@ -1,4 +1,5 @@
 from pathlib import Path
+from app.services.rag.chunker import chunk_pages
 
 from fastapi import (
     APIRouter,
@@ -90,4 +91,37 @@ async def upload_document(
         "filename": document.filename,
         "total_pages": len(pages),
         "status": document.status
+    }
+
+@router.post("/{document_id}/chunks")
+def create_document_chunks(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+
+    from app.database.models import Page
+
+    pages = (
+        db.query(Page)
+        .filter(Page.document_id == document_id)
+        .order_by(Page.page_number)
+        .all()
+    )
+
+    page_data = [
+        {
+            "page_number": page.page_number,
+            "text": page.text
+        }
+        for page in pages
+    ]
+
+    chunks = chunk_pages(
+        page_data
+    )
+
+    return {
+        "document_id": document_id,
+        "total_chunks": len(chunks),
+        "chunks": chunks
     }
