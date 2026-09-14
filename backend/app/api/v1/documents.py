@@ -1,5 +1,6 @@
 from pathlib import Path
 from app.services.rag.chunker import chunk_pages
+from app.services.rag.pipeline import analyze_document_with_rag
 
 from fastapi import (
     APIRouter,
@@ -125,3 +126,56 @@ def create_document_chunks(
         "total_chunks": len(chunks),
         "chunks": chunks
     }
+
+@router.post("/{document_id}/analyze")
+def analyze_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+
+    from app.database.models import Page
+
+    # --------------------------------
+    # Get document pages
+    # --------------------------------
+
+    pages = (
+        db.query(Page)
+        .filter(
+            Page.document_id == document_id
+        )
+        .order_by(Page.page_number)
+        .all()
+    )
+
+    if not pages:
+
+        return {
+            "error": "Document pages not found"
+        }
+
+    # --------------------------------
+    # Convert database objects
+    # --------------------------------
+
+    page_data = [
+        {
+            "page_number": page.page_number,
+            "text": page.text
+        }
+        for page in pages
+    ]
+
+    # --------------------------------
+    # Run RAG
+    # --------------------------------
+
+    analysis = analyze_document_with_rag(
+        page_data
+    )
+
+    # --------------------------------
+    # Return result
+    # --------------------------------
+
+    return analysis.model_dump()
