@@ -1,12 +1,7 @@
 import numpy as np
 
-from app.services.rag.vector_store import (
-    create_vector_store
-)
-
-from app.services.rag.retriever import (
-    retrieve_relevant_chunks
-)
+from app.services.rag.vector_store import create_vector_store
+from app.services.rag.retriever import retrieve_relevant_chunks
 
 
 def test_retrieve_relevant_chunks():
@@ -35,19 +30,19 @@ def test_retrieve_relevant_chunks():
         dtype="float32"
     )
 
-    index = create_vector_store(
-        embeddings
-    )
+    index = create_vector_store(embeddings)
 
     results = retrieve_relevant_chunks(
         query="exit load",
         index=index,
         chunks=chunks,
-        top_k=2
+        top_k=2,
+        query_embedding=np.array(
+            [[1.0, 0.0, 0.0]],
+            dtype="float32"
+        )
     )
 
     assert len(results) == 2
-
     assert "page_number" in results[0]
-
     assert "text" in results[0]
