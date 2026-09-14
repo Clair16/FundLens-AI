@@ -19,3 +19,11 @@ def create_embeddings(chunks):
     )
 
     return embeddings
+
+def create_query_embeddings(query):
+    embeddings = model.encode(
+        [query],
+        convert_to_numpy = True
+    )
+
+    return embeddings
