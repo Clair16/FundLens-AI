@@ -5,12 +5,15 @@ from components.header import show_header
 from components.upload import upload_document
 from components.risk_card import show_risk_card
 from components.dashboard import show_dashboard
-from components.api import send_document_to_backend
+from components.api import (
+    send_document_to_backend,
+    analyze_document
+)
 
 
-# --------------------------------------------------
+# ============================================================
 # PAGE CONFIGURATION
-# --------------------------------------------------
+# ============================================================
 
 st.set_page_config(
     page_title="FundLens AI",
@@ -19,9 +22,9 @@ st.set_page_config(
 )
 
 
-# --------------------------------------------------
+# ============================================================
 # CUSTOM CSS
-# --------------------------------------------------
+# ============================================================
 
 st.markdown(
     """
@@ -45,16 +48,16 @@ st.markdown(
 )
 
 
-# --------------------------------------------------
+# ============================================================
 # HEADER
-# --------------------------------------------------
+# ============================================================
 
 show_header()
 
 
-# --------------------------------------------------
+# ============================================================
 # SIDEBAR
-# --------------------------------------------------
+# ============================================================
 
 with st.sidebar:
 
@@ -79,13 +82,17 @@ with st.sidebar:
     )
 
 
-# ==================================================
+# ============================================================
 # ANALYZE DOCUMENT PAGE
-# ==================================================
+# ============================================================
 
 if page == "📄 Analyze Document":
 
     uploaded_file = upload_document()
+
+    # --------------------------------------------------------
+    # FILE SELECTED
+    # --------------------------------------------------------
 
     if uploaded_file:
 
@@ -110,9 +117,10 @@ if page == "📄 Analyze Document":
 
         st.markdown("---")
 
-        # ------------------------------------------
+
+        # ----------------------------------------------------
         # ANALYZE BUTTON
-        # ------------------------------------------
+        # ----------------------------------------------------
 
         if st.button(
             "🔍 Analyze Document",
@@ -120,255 +128,465 @@ if page == "📄 Analyze Document":
             use_container_width=True
         ):
 
-            with st.spinner(
-                "Uploading document to backend..."
-            ):
+            try:
 
-                try:
+                # ==================================================
+                # STEP 1 — UPLOAD PDF TO FASTAPI
+                # ==================================================
 
-                    # Send PDF to FastAPI
-                    result = send_document_to_backend(
-                        uploaded_file
+                with st.spinner(
+                    "📤 Uploading document..."
+                ):
+
+                    upload_result = (
+                        send_document_to_backend(
+                            uploaded_file
+                        )
                     )
 
-                    st.success(
-                        "Document uploaded successfully!"
+
+                # --------------------------------------------------
+                # GET DOCUMENT ID
+                # --------------------------------------------------
+
+                document_id = upload_result[
+                    "document_id"
+                ]
+
+
+                st.success(
+                    "✅ PDF uploaded successfully."
+                )
+
+
+                # Show document information
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    st.metric(
+                        "Document ID",
+                        document_id
                     )
 
-                    # ----------------------------------
-                    # BACKEND RESPONSE
-                    # ----------------------------------
+                with col2:
 
-                    st.subheader(
-                        "Backend Response"
+                    st.metric(
+                        "Total Pages",
+                        upload_result.get(
+                            "total_pages",
+                            "N/A"
+                        )
                     )
 
-                    st.json(result)
 
-                    st.markdown("---")
+                # ==================================================
+                # STEP 2 — RUN RAG + GEMINI ANALYSIS
+                # ==================================================
 
-                    # ----------------------------------
-                    # TEMPORARY PHASE 1/2 PREVIEW
-                    # ----------------------------------
+                with st.spinner(
+                    "🤖 Analyzing document with AI..."
+                ):
 
-                    st.subheader(
-                        "Analysis Preview"
+                    analysis_result = (
+                        analyze_document(
+                            document_id
+                        )
                     )
+
+
+                st.success(
+                    "✅ Analysis completed successfully!"
+                )
+
+
+                # ==================================================
+                # GET ANALYSIS OBJECT
+                # ==================================================
+
+                analysis = analysis_result[
+                    "analysis"
+                ]
+
+
+                overall_risk = analysis.get(
+                    "overall_risk",
+                    "Unknown"
+                )
+
+
+                summary = analysis.get(
+                    "summary",
+                    "No summary available."
+                )
+
+
+                findings = analysis.get(
+                    "findings",
+                    []
+                )
+
+
+                # ==================================================
+                # OVERALL RISK
+                # ==================================================
+
+                st.markdown("---")
+
+                st.subheader(
+                    "⚠️ Overall Risk"
+                )
+
+
+                if overall_risk == "High":
+
+                    st.error(
+                        "🔴 HIGH RISK"
+                    )
+
+                elif overall_risk == "Medium":
 
                     st.warning(
-                        "🟡 MEDIUM — "
-                        "Real document analysis will be "
-                        "connected during the RAG phase."
+                        "🟡 MEDIUM RISK"
                     )
 
-                    st.markdown("---")
+                elif overall_risk == "Low":
 
-                    # ----------------------------------
-                    # SUMMARY METRICS
-                    # ----------------------------------
-
-                    st.subheader(
-                        "Document Summary"
+                    st.success(
+                        "🟢 LOW RISK"
                     )
 
-                    col1, col2, col3, col4 = st.columns(4)
-
-                    with col1:
-
-                        st.metric(
-                            "⚠️ Risks",
-                            "3"
-                        )
-
-                    with col2:
-
-                        st.metric(
-                            "💰 Fees",
-                            "2"
-                        )
-
-                    with col3:
-
-                        st.metric(
-                            "🔒 Restrictions",
-                            "1"
-                        )
-
-                    with col4:
-
-                        st.metric(
-                            "📌 Clauses",
-                            "4"
-                        )
-
-                    st.markdown("---")
-
-                    # ----------------------------------
-                    # RISK FINDINGS
-                    # ----------------------------------
-
-                    st.subheader(
-                        "⚠️ Risk Findings"
-                    )
-
-                    show_risk_card(
-                        title="Market Risk",
-                        severity="🔴 High",
-                        explanation=(
-                            "The fund's returns may be "
-                            "affected by fluctuations "
-                            "in the market."
-                        ),
-                        page=17
-                    )
-
-                    show_risk_card(
-                        title="Exit Load",
-                        severity="🟡 Medium",
-                        explanation=(
-                            "An exit load may apply "
-                            "when units are redeemed "
-                            "within the specified period."
-                        ),
-                        page=23
-                    )
-
-                    show_risk_card(
-                        title="Liquidity Restriction",
-                        severity="🟡 Medium",
-                        explanation=(
-                            "Certain conditions may "
-                            "restrict when investments "
-                            "can be withdrawn."
-                        ),
-                        page=42
-                    )
-
-                    st.markdown("---")
-
-                    # ----------------------------------
-                    # FEES
-                    # ----------------------------------
-
-                    st.subheader(
-                        "💰 Fees & Charges"
-                    )
-
-                    st.dataframe(
-                        {
-                            "Fee": [
-                                "Exit Load",
-                                "Expense Ratio"
-                            ],
-                            "Severity": [
-                                "Medium",
-                                "Low"
-                            ],
-                            "Source": [
-                                "Page 23",
-                                "Page 31"
-                            ]
-                        },
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-                    st.markdown("---")
-
-                    # ----------------------------------
-                    # PAGE EVIDENCE
-                    # ----------------------------------
-
-                    st.subheader(
-                        "📌 Page-Level Evidence"
-                    )
+                else:
 
                     st.info(
-                        "Real page-level evidence will "
-                        "be generated from the PDF during "
-                        "the RAG integration phase."
+                        f"Risk Level: {overall_risk}"
                     )
 
-                    st.markdown("---")
 
-                    # ----------------------------------
-                    # READ BEFORE YOU INVEST
-                    # ----------------------------------
+                # ==================================================
+                # DOCUMENT SUMMARY
+                # ==================================================
 
-                    st.subheader(
-                        "📑 Read Before You Invest"
+                st.markdown("---")
+
+                st.subheader(
+                    "📄 Document Summary"
+                )
+
+                st.write(summary)
+
+
+                # ==================================================
+                # ANALYSIS METRICS
+                # ==================================================
+
+                risk_count = sum(
+                    1
+                    for finding in findings
+                    if finding.get("category")
+                    == "Risk"
+                )
+
+
+                fee_count = sum(
+                    1
+                    for finding in findings
+                    if finding.get("category")
+                    == "Fee"
+                )
+
+
+                restriction_count = sum(
+                    1
+                    for finding in findings
+                    if finding.get("category")
+                    == "Restriction"
+                )
+
+
+                clause_count = sum(
+                    1
+                    for finding in findings
+                    if finding.get("category")
+                    == "Important Clause"
+                )
+
+
+                st.markdown("---")
+
+                st.subheader(
+                    "📊 Analysis Overview"
+                )
+
+
+                col1, col2, col3, col4 = (
+                    st.columns(4)
+                )
+
+
+                with col1:
+
+                    st.metric(
+                        "⚠️ Risks",
+                        risk_count
                     )
+
+
+                with col2:
+
+                    st.metric(
+                        "💰 Fees",
+                        fee_count
+                    )
+
+
+                with col3:
+
+                    st.metric(
+                        "🔒 Restrictions",
+                        restriction_count
+                    )
+
+
+                with col4:
+
+                    st.metric(
+                        "📌 Clauses",
+                        clause_count
+                    )
+
+
+                # ==================================================
+                # FINDINGS
+                # ==================================================
+
+                st.markdown("---")
+
+                st.subheader(
+                    "⚠️ Risk & Important Findings"
+                )
+
+
+                if not findings:
+
+                    st.info(
+                        "No important findings were "
+                        "identified from the document context."
+                    )
+
+                else:
+
+                    for finding in findings:
+
+                        show_risk_card(
+                            title=finding.get(
+                                "title",
+                                "Untitled Finding"
+                            ),
+
+                            severity=finding.get(
+                                "severity",
+                                "Unknown"
+                            ),
+
+                            explanation=finding.get(
+                                "explanation",
+                                "No explanation available."
+                            ),
+
+                            page=finding.get(
+                                "page_number",
+                                "N/A"
+                            )
+                        )
+
+
+                # ==================================================
+                # PAGE LEVEL EVIDENCE
+                # ==================================================
+
+                st.markdown("---")
+
+                st.subheader(
+                    "📑 Page-Level Evidence"
+                )
+
+
+                if not findings:
+
+                    st.info(
+                        "No evidence available."
+                    )
+
+                else:
+
+                    for finding in findings:
+
+                        page_number = finding.get(
+                            "page_number",
+                            "N/A"
+                        )
+
+                        title = finding.get(
+                            "title",
+                            "Untitled Finding"
+                        )
+
+                        evidence = finding.get(
+                            "evidence",
+                            "No evidence available."
+                        )
+
+                        category = finding.get(
+                            "category",
+                            "Unknown"
+                        )
+
+                        with st.expander(
+                            f"📄 Page {page_number} — {title}"
+                        ):
+
+                            st.write(
+                                "**Evidence:**"
+                            )
+
+                            st.info(
+                                evidence
+                            )
+
+                            st.caption(
+                                f"Category: {category}"
+                            )
+
+
+                # ==================================================
+                # READ BEFORE YOU INVEST
+                # ==================================================
+
+                st.markdown("---")
+
+                st.subheader(
+                    "📑 Read Before You Invest"
+                )
+
+
+                if findings:
+
+                    for finding in findings:
+
+                        title = finding.get(
+                            "title",
+                            "Important Finding"
+                        )
+
+                        explanation = finding.get(
+                            "explanation",
+                            ""
+                        )
+
+                        severity = finding.get(
+                            "severity",
+                            "Unknown"
+                        )
+
+                        page_number = finding.get(
+                            "page_number",
+                            "N/A"
+                        )
+
+                        st.write(
+                            f"• **{title}** "
+                            f"({severity}) — "
+                            f"{explanation} "
+                            f"*(Page {page_number})*"
+                        )
+
+                else:
 
                     st.write(
-                        """
-                        • Review the market-related risks
-                          carefully.
-
-                        • Check applicable exit-load
-                          conditions.
-
-                        • Understand the fees associated
-                          with the fund.
-
-                        • Review withdrawal and liquidity
-                          restrictions.
-
-                        • Verify important information
-                          against the original document.
-                        """
-                    )
-
-                # --------------------------------------
-                # CONNECTION ERROR
-                # --------------------------------------
-
-                except requests.exceptions.ConnectionError:
-
-                    st.error(
-                        "❌ Could not connect to the "
-                        "FastAPI backend."
-                    )
-
-                    st.info(
-                        "Make sure FastAPI is running with:"
-                    )
-
-                    st.code(
-                        "uvicorn app.main:app --reload"
-                    )
-
-                # --------------------------------------
-                # HTTP ERROR
-                # --------------------------------------
-
-                except requests.exceptions.HTTPError as error:
-
-                    st.error(
-                        f"❌ Backend returned an error: "
-                        f"{error}"
-                    )
-
-                # --------------------------------------
-                # OTHER ERRORS
-                # --------------------------------------
-
-                except Exception as error:
-
-                    st.error(
-                        f"❌ Something went wrong: "
-                        f"{error}"
+                        "No specific items were "
+                        "identified from the retrieved "
+                        "document context."
                     )
 
 
-# ==================================================
+                # ==================================================
+                # ANALYSIS ID
+                # ==================================================
+
+                st.markdown("---")
+
+                st.caption(
+                    f"Analysis ID: "
+                    f"{analysis_result.get('analysis_id', 'N/A')}"
+                )
+
+                st.caption(
+                    f"Document ID: {document_id}"
+                )
+
+
+            # ======================================================
+            # ERROR HANDLING
+            # ======================================================
+
+            except requests.exceptions.ConnectionError:
+
+                st.error(
+                    "❌ Could not connect to the "
+                    "FastAPI backend."
+                )
+
+                st.info(
+                    "Make sure FastAPI is running:"
+                )
+
+                st.code(
+                    "cd backend\n"
+                    "uvicorn app.main:app --reload"
+                )
+
+
+            except requests.exceptions.HTTPError as error:
+
+                st.error(
+                    f"❌ Backend returned an HTTP error: "
+                    f"{error}"
+                )
+
+
+            except KeyError as error:
+
+                st.error(
+                    f"❌ Unexpected response from backend. "
+                    f"Missing field: {error}"
+                )
+
+                st.json(
+                    analysis_result
+                    if "analysis_result" in locals()
+                    else {}
+                )
+
+
+            except Exception as error:
+
+                st.error(
+                    f"❌ Something went wrong: {error}"
+                )
+
+
+# ============================================================
 # DASHBOARD PAGE
-# ==================================================
+# ============================================================
 
 elif page == "📊 Dashboard":
 
     show_dashboard()
 
     st.info(
-        "Real analysis results will appear here "
-        "after connecting the database and RAG pipeline."
+        "The dashboard will be connected to "
+        "real PostgreSQL analysis data in the "
+        "next step."
     )
